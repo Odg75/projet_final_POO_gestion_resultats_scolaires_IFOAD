@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+code/data/donnees.pkl
+*.docx.new
