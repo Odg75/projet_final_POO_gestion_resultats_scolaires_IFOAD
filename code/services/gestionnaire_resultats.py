@@ -1,6 +1,7 @@
 """Service central : registre de toutes les données et opérations CRUD."""
 
 from __future__ import annotations
+import itertools
 import pickle
 from pathlib import Path
 from typing import List, Optional
@@ -139,7 +140,32 @@ class GestionnaireResultats:
     @staticmethod
     def charger(chemin: str | Path) -> "GestionnaireResultats":
         with open(chemin, "rb") as fichier:
-            return pickle.load(fichier)
+            gestionnaire = pickle.load(fichier)
+        gestionnaire._resynchroniser_compteurs()
+        return gestionnaire
+
+    def _resynchroniser_compteurs(self) -> None:
+        """Réaligne les compteurs de matricule/code après un chargement disque.
+
+        Eleve._compteur et Enseignant._compteur sont des itertools.count en
+        mémoire : ils repartent de 1 à chaque démarrage du programme. Sans ce
+        réajustement, un nouvel élève (ou enseignant) ajouté juste après un
+        rechargement de données reçoit un matricule (ou code) déjà utilisé
+        (ex. EL0001), ce qui est ensuite refusé comme doublon par
+        ajouter_eleve(), même s'il s'agit d'une personne différente.
+        """
+        def _max_suffixe(valeurs, prefixe: str) -> int:
+            meilleur = 0
+            for valeur in valeurs:
+                if valeur.startswith(prefixe) and valeur[len(prefixe):].isdigit():
+                    meilleur = max(meilleur, int(valeur[len(prefixe):]))
+            return meilleur
+
+        max_matricule = _max_suffixe((e.matricule for e in self.eleves), "EL")
+        Eleve._compteur = itertools.count(max_matricule + 1)
+
+        max_code = _max_suffixe((ens.code for ens in self.enseignants), "ENS")
+        Enseignant._compteur = itertools.count(max_code + 1)
 
     def __repr__(self) -> str:
         return (
